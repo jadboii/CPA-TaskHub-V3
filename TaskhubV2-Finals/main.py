@@ -38,12 +38,12 @@ class Task(db.Model):
 @login_required
 def check_deadlines():
     today = date.today()
-    tasks = Task.query.filter(Task.deadline <= today).all()
+    tasks = list(Task.query.filter(Task.deadline <= today, Task.assignee_id == current_user.id).all())
 
     if tasks:
-        flash('You have tasks that meet the deadline today or have passed the deadline.', 'warning')
+        return True
 
-    return redirect(url_for('index'))
+    return False
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -63,7 +63,7 @@ def admin_login():
             login_user(user)
             return redirect(url_for('admin_index'))
         else:
-            flash('Invalid username or password.', 'error')
+            flash('Invalid username or password.', 'danger')
     return render_template('admin_login.html')
 
 @app.route('/staff_login', methods=['GET', 'POST'])
@@ -76,7 +76,7 @@ def staff_login():
             login_user(user)
             return redirect(url_for('index'))
         else:
-            flash('Invalid username or password.', 'error')
+            flash('Invalid username or password.', 'danger')
     return render_template('staff_login.html')
 
 
@@ -113,7 +113,7 @@ def staff_register():
 
         existing_user = User.query.filter_by(username=username).first()
         if existing_user:
-            flash('Username already exists. Please choose a different username.', 'error')
+            flash('Username already exists. Please choose a different username.', 'danger')
             return redirect(url_for('staff_register'))
 
         hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
@@ -174,16 +174,17 @@ def admin_index():
         return redirect(url_for('index'))
     tasks = Task.query.all()
     users = User.query.all()
-    check_deadlines()
+    if check_deadlines():
+        flash('You have tasks that meet the deadline today or have passed the deadline.', 'warning')
     return render_template('admin_index.html', tasks=tasks, users=users)
 
 @app.route('/index')
 @login_required
 def index():
     tasks = Task.query.filter_by(assignee_id=current_user.id).all()
-    check_deadlines()
+    if check_deadlines():
+        flash('You have tasks that meet the deadline today or have passed the deadline.', 'warning')
     return render_template('index.html', tasks=tasks)
-
 @app.route('/update_task_progress/<int:task_id>', methods=['POST'])
 @login_required
 def update_task_progress(task_id):
